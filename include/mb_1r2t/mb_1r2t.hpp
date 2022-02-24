@@ -18,8 +18,14 @@ private:
     static const uint8_t KSYNC0 = 0xAA;
     static const uint8_t KSYNC1 = 0x55;
 
-    static constexpr float RANGE_MIN = 0.1;
+    static constexpr float RANGE_MIN = 0.11;
     static constexpr float RANGE_MAX = 8.0;
+
+    static constexpr float ANGLE_MIN = 0.0;
+    static constexpr float ANGLE_MAX = 2 * M_PI;
+    static constexpr float ANGLE_INC = ANGLE_MAX / 400.0;
+
+    static constexpr float SCAN_TIME = 0.2;
 
     enum State {
         SYNC0 = 0,
@@ -45,9 +51,10 @@ private:
 
     std::unique_ptr<SerialDevice> m_serial_device;
     rclcpp::TimerBase::SharedPtr m_timer;
+
     rclcpp::Publisher<sensor_msgs::msg::LaserScan>::SharedPtr m_laser_scan_publisher;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud>::SharedPtr m_point_cloud_publisher;
-    rclcpp::Time m_last_sent;
+
     sensor_msgs::msg::LaserScan m_laser_scan_msg;
     sensor_msgs::msg::PointCloud m_point_cloud_msg;
 
@@ -56,4 +63,5 @@ private:
     PackageHeader m_package_header = {};
     float m_last_angle { 0 };
     std::string m_frame_id;
+    float m_position_z = 0;
 };

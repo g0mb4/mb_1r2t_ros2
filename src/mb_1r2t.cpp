@@ -12,12 +12,15 @@ MB_1r2t::MB_1r2t()
 
     m_serial_device = std::make_unique<SerialDevice>(*this, "/dev/ttyUSB0");
 
-    m_last_sent = now();
-
     m_frame_id = "laser_scan";
 
+    m_laser_scan_msg.angle_min = ANGLE_MIN;
+    m_laser_scan_msg.angle_max = ANGLE_MAX;
+    m_laser_scan_msg.angle_increment = ANGLE_INC;
     m_laser_scan_msg.range_min = RANGE_MIN;
     m_laser_scan_msg.range_max = RANGE_MAX;
+    m_laser_scan_msg.scan_time = SCAN_TIME;
+    m_laser_scan_msg.time_increment = SCAN_TIME / (ANGLE_MAX / ANGLE_INC);
 
     m_laser_scan_msg.header.frame_id = m_frame_id;
     m_point_cloud_msg.header.frame_id = m_frame_id;
@@ -32,12 +35,8 @@ void MB_1r2t::update()
 
 void MB_1r2t::publish_laser_scan()
 {
-    m_laser_scan_msg.time_increment = (now() - m_last_sent).seconds();
-    m_laser_scan_msg.scan_time = (now() - m_last_sent).seconds();
-
     m_laser_scan_publisher->publish(m_laser_scan_msg);
 
-    m_last_sent = now();
     m_laser_scan_msg.ranges.clear();
     m_laser_scan_msg.intensities.clear();
 }
@@ -61,11 +60,9 @@ void MB_1r2t::parse_packet()
 
         if (m_buffer[0] == KSYNC0) {
             m_state = SYNC1;
-        } else {
-            break;
         }
 
-        // fallthrough is intentional
+        break;
     }
     case SYNC1: {
         if (m_serial_device->read(&m_buffer[1], 1) == false) {
@@ -76,10 +73,9 @@ void MB_1r2t::parse_packet()
             m_state = HEADER;
         } else {
             m_state = SYNC0;
-            break;
         }
 
-        // fallthrough is intentional
+        break;
     }
     case HEADER: {
         if (m_serial_device->read(&m_buffer[2], 8) == false) {
@@ -94,7 +90,7 @@ void MB_1r2t::parse_packet()
         m_package_header.crc = m_buffer[9] << 8 | m_buffer[8];
 
         m_state = DATA;
-        // fallthrough is intentional
+        break;
     }
     case DATA: {
         uint16_t bytes_to_read = m_package_header.data_length * 3;
@@ -131,13 +127,9 @@ void MB_1r2t::parse_packet()
             float anglef = (step * (angle / 0xB400));
 
             if (anglef < m_last_angle) {
-                m_laser_scan_msg.angle_max = m_last_angle;
-                m_laser_scan_msg.angle_increment = angle_per_sample;
-
                 publish_laser_scan();
 
                 m_laser_scan_msg.header.stamp = now();
-                m_laser_scan_msg.angle_min = anglef;
             }
 
             m_last_angle = anglef;
@@ -146,11 +138,10 @@ void MB_1r2t::parse_packet()
             m_laser_scan_msg.intensities.push_back(intensity);
 
             geometry_msgs::msg::Point32 point;
-
             float angle_inv = (M_PI * 2) - anglef;
             point.x = cos(angle_inv) * distancef;
             point.y = sin(angle_inv) * distancef;
-            point.z = 0;
+            point.z = m_position_z;
 
             m_point_cloud_msg.points.emplace_back(point);
         }
