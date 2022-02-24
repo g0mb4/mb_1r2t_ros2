@@ -12,7 +12,7 @@ MB_1r2t::MB_1r2t()
 
     m_serial_device = std::make_unique<SerialDevice>(*this, "/dev/ttyUSB0");
 
-    m_frame_id = "laser_scan";
+    m_frame_id = "lidar";
 
     m_laser_scan_msg.angle_min = ANGLE_MIN;
     m_laser_scan_msg.angle_max = ANGLE_MAX;
@@ -35,6 +35,9 @@ void MB_1r2t::update()
 
 void MB_1r2t::publish_laser_scan()
 {
+    std::reverse(m_laser_scan_msg.ranges.begin(), m_laser_scan_msg.ranges.end());
+    std::reverse(m_laser_scan_msg.intensities.begin(), m_laser_scan_msg.intensities.end());
+
     m_laser_scan_publisher->publish(m_laser_scan_msg);
 
     m_laser_scan_msg.ranges.clear();
@@ -103,6 +106,12 @@ void MB_1r2t::parse_packet()
             publish_point_cloud();
         }
 
+        // corrupt data
+        if (bytes_to_read != 120) {
+            m_state = SYNC0;
+            break;
+        }
+
         int16_t diff = m_package_header.stop_angle - m_package_header.start_angle;
         if (m_package_header.stop_angle < m_package_header.start_angle) {
             diff = 0xB400 - m_package_header.start_angle + m_package_header.stop_angle;
@@ -127,6 +136,7 @@ void MB_1r2t::parse_packet()
             float anglef = (step * (angle / 0xB400));
 
             if (anglef < m_last_angle) {
+
                 publish_laser_scan();
 
                 m_laser_scan_msg.header.stamp = now();
