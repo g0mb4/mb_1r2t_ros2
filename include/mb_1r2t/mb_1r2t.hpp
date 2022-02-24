@@ -1,0 +1,59 @@
+#pragma once
+
+#include <rclcpp/rclcpp.hpp>
+
+#include <mb_1r2t/serial_device_linux.hpp>
+#include <sensor_msgs/msg/laser_scan.hpp>
+#include <sensor_msgs/msg/point_cloud.hpp>
+
+#include <string>
+
+class MB_1r2t : public rclcpp::Node {
+public:
+    static const size_t BUFFER_SIZE = 160;
+
+    MB_1r2t();
+
+private:
+    static const uint8_t KSYNC0 = 0xAA;
+    static const uint8_t KSYNC1 = 0x55;
+
+    static constexpr float RANGE_MIN = 0.1;
+    static constexpr float RANGE_MAX = 8.0;
+
+    enum State {
+        SYNC0 = 0,
+        SYNC1,
+        HEADER,
+        DATA
+    };
+
+    struct PackageHeader {
+        uint8_t type;
+        uint8_t data_length;
+        uint16_t start_angle;
+        uint16_t stop_angle;
+        uint16_t crc;
+    };
+
+    void update();
+
+    void publish_laser_scan();
+    void publish_point_cloud();
+
+    void parse_packet();
+
+    std::unique_ptr<SerialDevice> m_serial_device;
+    rclcpp::TimerBase::SharedPtr m_timer;
+    rclcpp::Publisher<sensor_msgs::msg::LaserScan>::SharedPtr m_laser_scan_publisher;
+    rclcpp::Publisher<sensor_msgs::msg::PointCloud>::SharedPtr m_point_cloud_publisher;
+    rclcpp::Time m_last_sent;
+    sensor_msgs::msg::LaserScan m_laser_scan_msg;
+    sensor_msgs::msg::PointCloud m_point_cloud_msg;
+
+    uint8_t m_buffer[BUFFER_SIZE] = { 0 };
+    State m_state { SYNC0 };
+    PackageHeader m_package_header = {};
+    float m_last_angle { 0 };
+    std::string m_frame_id;
+};
