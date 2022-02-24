@@ -7,6 +7,7 @@
 #include <sensor_msgs/msg/point_cloud.hpp>
 
 #include <string>
+#include <vector>
 
 class MB_1r2t : public rclcpp::Node {
 public:
@@ -42,6 +43,12 @@ private:
         uint16_t crc;
     };
 
+    struct ScanResult {
+        float angle;
+        float distance;
+        float intensity;
+    };
+
     void update();
 
     void publish_laser_scan();
@@ -58,10 +65,11 @@ private:
     sensor_msgs::msg::LaserScan m_laser_scan_msg;
     sensor_msgs::msg::PointCloud m_point_cloud_msg;
 
+    std::vector<ScanResult> m_scan_results;
+
     uint8_t m_buffer[BUFFER_SIZE] = { 0 };
     State m_state { SYNC0 };
     PackageHeader m_package_header = {};
-    float m_last_angle { 0 };
     std::string m_frame_id;
     float m_position_z = 0;
 };

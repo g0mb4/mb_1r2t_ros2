@@ -1,5 +1,8 @@
-#include <geometry_msgs/msg/point32.hpp>
 #include <mb_1r2t/mb_1r2t.hpp>
+
+#include <geometry_msgs/msg/point32.hpp>
+
+#include <algorithm>
 
 MB_1r2t::MB_1r2t()
     : rclcpp::Node("mb_1r2t")
@@ -14,9 +17,6 @@ MB_1r2t::MB_1r2t()
 
     m_frame_id = "lidar";
 
-    m_laser_scan_msg.angle_min = ANGLE_MIN;
-    m_laser_scan_msg.angle_max = ANGLE_MAX;
-    m_laser_scan_msg.angle_increment = ANGLE_INC;
     m_laser_scan_msg.range_min = RANGE_MIN;
     m_laser_scan_msg.range_max = RANGE_MAX;
     m_laser_scan_msg.scan_time = SCAN_TIME;
@@ -35,11 +35,31 @@ void MB_1r2t::update()
 
 void MB_1r2t::publish_laser_scan()
 {
-    std::reverse(m_laser_scan_msg.ranges.begin(), m_laser_scan_msg.ranges.end());
-    std::reverse(m_laser_scan_msg.intensities.begin(), m_laser_scan_msg.intensities.end());
+    std::sort(m_scan_results.begin(), m_scan_results.end(), [](const ScanResult& a, const ScanResult& b) {
+        return a.angle < b.angle;
+    });
+
+    float avg_increment = 0;
+    float min_angle = m_scan_results[0].angle;
+    float max_angle = m_scan_results[m_scan_results.size() - 1].angle;
+
+    for (size_t i = 1; i < m_scan_results.size(); ++i) {
+        avg_increment += m_scan_results[i].angle - m_scan_results[i - 1].angle;
+    }
+    avg_increment /= (float)m_scan_results.size();
+
+    m_laser_scan_msg.angle_min = min_angle;
+    m_laser_scan_msg.angle_max = max_angle;
+    m_laser_scan_msg.angle_increment = avg_increment;
+
+    for (ScanResult& s : m_scan_results) {
+        m_laser_scan_msg.ranges.emplace_back(s.distance);
+        m_laser_scan_msg.intensities.emplace_back(s.distance);
+    }
 
     m_laser_scan_publisher->publish(m_laser_scan_msg);
 
+    m_scan_results.clear();
     m_laser_scan_msg.ranges.clear();
     m_laser_scan_msg.intensities.clear();
 }
@@ -104,6 +124,9 @@ void MB_1r2t::parse_packet()
 
         if (m_package_header.type & 1) {
             publish_point_cloud();
+            publish_laser_scan();
+
+            m_laser_scan_msg.header.stamp = now();
         }
 
         // corrupt data
@@ -134,21 +157,16 @@ void MB_1r2t::parse_packet()
             float step = M_PI * 2;
             float angle = (m_package_header.start_angle + angle_per_sample * i);
             float anglef = (step * (angle / 0xB400));
+            float angle_inv = (M_PI * 2) - anglef;
 
-            if (anglef < m_last_angle) {
+            ScanResult result;
+            result.angle = angle_inv;
+            result.distance = distancef;
+            result.intensity = intensity;
 
-                publish_laser_scan();
-
-                m_laser_scan_msg.header.stamp = now();
-            }
-
-            m_last_angle = anglef;
-
-            m_laser_scan_msg.ranges.push_back(distancef);
-            m_laser_scan_msg.intensities.push_back(intensity);
+            m_scan_results.emplace_back(result);
 
             geometry_msgs::msg::Point32 point;
-            float angle_inv = (M_PI * 2) - anglef;
             point.x = cos(angle_inv) * distancef;
             point.y = sin(angle_inv) * distancef;
             point.z = m_position_z;
