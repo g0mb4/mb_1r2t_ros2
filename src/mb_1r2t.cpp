@@ -122,7 +122,7 @@ void MB_1r2t::scan_data()
         geometry_msgs::msg::Point32 point;
         point.x = cos(angle_inv) * distancef;
         point.y = sin(angle_inv) * distancef;
-        point.z = m_position_z;
+        point.z = 0;
 
         m_point_cloud_msg.points.emplace_back(point);
     }

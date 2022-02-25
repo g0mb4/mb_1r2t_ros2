@@ -81,6 +81,4 @@ private:
 
     State m_state { SYNC0 };
     Packet m_packet = {};
-
-    float m_position_z = 0;
 };
