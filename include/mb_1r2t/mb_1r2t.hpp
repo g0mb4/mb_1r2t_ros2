@@ -19,11 +19,7 @@ private:
     static constexpr float RANGE_MIN = 0.11;
     static constexpr float RANGE_MAX = 8.0;
 
-    static constexpr float ANGLE_MIN = 0.0;
-    static constexpr float ANGLE_MAX = 2 * M_PI;
-    static constexpr float ANGLE_INC = ANGLE_MAX / 400.0;
-
-    static constexpr float SCAN_TIME = 0.2;
+    static constexpr float SCAN_TIME = 0.2; // TODO: measure this
 
     enum State {
         SYNC0 = 0,
@@ -69,6 +65,9 @@ private:
     void scan_done();
     void scan_data();
 
+    std::string m_port;
+    std::string m_frame_id;
+
     std::unique_ptr<SerialDevice> m_serial_device;
     rclcpp::TimerBase::SharedPtr m_timer;
 
@@ -82,6 +81,6 @@ private:
 
     State m_state { SYNC0 };
     Packet m_packet = {};
-    std::string m_frame_id;
+
     float m_position_z = 0;
 };

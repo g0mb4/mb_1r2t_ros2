@@ -22,12 +22,17 @@ find_package(sensor_msgs REQUIRED)
 
 include_directories(include)
 
-add_executable(mb_1r2t src/main.cpp src/serial_device_linux.cpp src/mb_1r2t.cpp)
-ament_target_dependencies(mb_1r2t rclcpp sensor_msgs)
+add_executable(mb_1r2t_node src/main.cpp src/serial_device_linux.cpp src/mb_1r2t.cpp)
+ament_target_dependencies(mb_1r2t_node rclcpp sensor_msgs)
 
 install(TARGETS
-  mb_1r2t
+  mb_1r2t_node
   DESTINATION lib/${PROJECT_NAME}
+)
+
+install(DIRECTORY
+  launch
+  DESTINATION share/${PROJECT_NAME}
 )
 
 if(BUILD_TESTING)

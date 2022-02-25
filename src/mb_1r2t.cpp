@@ -7,20 +7,23 @@
 MB_1r2t::MB_1r2t()
     : rclcpp::Node("mb_1r2t_node")
 {
+    declare_parameter<std::string>("port", "/dev/ttyUSB0");
+    m_port = get_parameter("port").as_string();
+
+    declare_parameter<std::string>("frame_id", "lidar");
+    m_frame_id = get_parameter("frame_id").as_string();
+
     m_timer = create_wall_timer(std::chrono::milliseconds(1),
         std::bind(&MB_1r2t::publish_loop, this));
 
     m_laser_scan_publisher = create_publisher<sensor_msgs::msg::LaserScan>("/laser_scan", 10);
     m_point_cloud_publisher = create_publisher<sensor_msgs::msg::PointCloud>("/point_cloud", 10);
 
-    m_serial_device = std::make_unique<SerialDevice>(*this, "/dev/ttyUSB0");
-
-    m_frame_id = "lidar";
+    m_serial_device = std::make_unique<SerialDevice>(*this, m_port);
 
     m_laser_scan_msg.range_min = RANGE_MIN;
     m_laser_scan_msg.range_max = RANGE_MAX;
     m_laser_scan_msg.scan_time = SCAN_TIME;
-    m_laser_scan_msg.time_increment = SCAN_TIME / (ANGLE_MAX / ANGLE_INC);
 
     m_laser_scan_msg.header.frame_id = m_frame_id;
     m_point_cloud_msg.header.frame_id = m_frame_id;
@@ -48,6 +51,7 @@ void MB_1r2t::publish_laser_scan()
     }
     avg_increment /= (float)(m_scan_results.size() - 1);
 
+    m_laser_scan_msg.time_increment = SCAN_TIME / ((max_angle - min_angle) / avg_increment);
     m_laser_scan_msg.angle_min = min_angle;
     m_laser_scan_msg.angle_max = max_angle;
     m_laser_scan_msg.angle_increment = avg_increment;
@@ -185,6 +189,7 @@ void MB_1r2t::parse_packet()
         } else if (m_packet.type == SCAN_DATA) {
             scan_data();
         } else {
+            // NOTE: This can be a sign if rotation is blocked.
             RCLCPP_ERROR(get_logger(), "Unknown packet type: %02X", m_packet.type);
         }
 
