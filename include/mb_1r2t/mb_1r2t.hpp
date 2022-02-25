@@ -49,7 +49,7 @@ private:
         float intensity;
     };
 
-    void update();
+    void publish_loop();
 
     void publish_laser_scan();
     void publish_point_cloud();
