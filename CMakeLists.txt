@@ -22,7 +22,15 @@ find_package(sensor_msgs REQUIRED)
 
 include_directories(include)
 
-add_executable(mb_1r2t_node src/main.cpp src/serial_device_linux.cpp src/mb_1r2t.cpp)
+set(SRC src/main.cpp src/mb_1r2t.cpp)
+
+IF(WIN32)
+  LIST(APPEND SRC src/serial_device_win.cpp)
+ELSE()
+  LIST(APPEND SRC src/serial_device_linux.cpp)
+ENDIF()
+
+add_executable(mb_1r2t_node ${SRC})
 ament_target_dependencies(mb_1r2t_node rclcpp sensor_msgs)
 
 install(TARGETS

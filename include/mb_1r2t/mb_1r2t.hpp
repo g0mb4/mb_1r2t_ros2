@@ -2,7 +2,12 @@
 
 #include <rclcpp/rclcpp.hpp>
 
+#ifdef __linux__
 #include <mb_1r2t/serial_device_linux.hpp>
+#else
+#include <mb_1r2t/serial_device_win.hpp>
+#endif
+
 #include <sensor_msgs/msg/laser_scan.hpp>
 #include <sensor_msgs/msg/point_cloud.hpp>
 
