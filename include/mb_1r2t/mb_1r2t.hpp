@@ -19,8 +19,6 @@ private:
     static constexpr float RANGE_MIN = 0.11;
     static constexpr float RANGE_MAX = 8.0;
 
-    static constexpr float SCAN_TIME = 0.2; // TODO: measure this
-
     enum State {
         SYNC0 = 0,
         SYNC1,
@@ -67,6 +65,8 @@ private:
 
     std::string m_port;
     std::string m_frame_id;
+
+    rclcpp::Time m_last_scan_time;
 
     std::unique_ptr<SerialDevice> m_serial_device;
     rclcpp::TimerBase::SharedPtr m_timer;

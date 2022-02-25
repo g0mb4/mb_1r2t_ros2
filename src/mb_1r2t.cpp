@@ -23,10 +23,11 @@ MB_1r2t::MB_1r2t()
 
     m_laser_scan_msg.range_min = RANGE_MIN;
     m_laser_scan_msg.range_max = RANGE_MAX;
-    m_laser_scan_msg.scan_time = SCAN_TIME;
 
     m_laser_scan_msg.header.frame_id = m_frame_id;
     m_point_cloud_msg.header.frame_id = m_frame_id;
+
+    m_last_scan_time = now();
 
     RCLCPP_INFO(get_logger(), "started");
 }
@@ -51,15 +52,18 @@ void MB_1r2t::publish_laser_scan()
     }
     avg_increment /= (float)(m_scan_results.size() - 1);
 
-    m_laser_scan_msg.time_increment = SCAN_TIME / ((max_angle - min_angle) / avg_increment);
-    m_laser_scan_msg.angle_min = min_angle;
-    m_laser_scan_msg.angle_max = max_angle;
-    m_laser_scan_msg.angle_increment = avg_increment;
-
     for (ScanResult& s : m_scan_results) {
         m_laser_scan_msg.ranges.emplace_back(s.distance);
         m_laser_scan_msg.intensities.emplace_back(s.distance);
     }
+
+    rclcpp::Duration scan_time = now() - m_last_scan_time;
+
+    m_laser_scan_msg.scan_time = scan_time.seconds();
+    m_laser_scan_msg.time_increment = scan_time.seconds() / (float)m_scan_results.size();
+    m_laser_scan_msg.angle_min = min_angle;
+    m_laser_scan_msg.angle_max = max_angle;
+    m_laser_scan_msg.angle_increment = avg_increment;
 
     m_laser_scan_publisher->publish(m_laser_scan_msg);
 
@@ -83,6 +87,7 @@ void MB_1r2t::scan_done()
     publish_laser_scan();
 
     m_laser_scan_msg.header.stamp = now();
+    m_last_scan_time = now();
 }
 
 void MB_1r2t::scan_data()
