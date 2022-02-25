@@ -11,13 +11,10 @@
 
 class MB_1r2t : public rclcpp::Node {
 public:
-    static const size_t BUFFER_SIZE = 160;
-
     MB_1r2t();
 
 private:
-    static const uint8_t KSYNC0 = 0xAA;
-    static const uint8_t KSYNC1 = 0x55;
+    static const size_t DATA_SIZE = 120;
 
     static constexpr float RANGE_MIN = 0.11;
     static constexpr float RANGE_MAX = 8.0;
@@ -35,12 +32,25 @@ private:
         DATA
     };
 
-    struct PackageHeader {
+    enum SyncByte {
+        SYNC_BYTE0 = 0xAA,
+        SYNC_BYTE1 = 0x55,
+    };
+
+    enum PacketType {
+        SCAN_DONE = 0x91,
+        SCAN_DATA = 0x2C
+    };
+
+    struct Packet {
+        uint8_t sync_0;
+        uint8_t sync_1;
         uint8_t type;
         uint8_t data_length;
         uint16_t start_angle;
         uint16_t stop_angle;
         uint16_t crc;
+        uint8_t data[DATA_SIZE] = { 0 };
     };
 
     struct ScanResult {
@@ -56,6 +66,9 @@ private:
 
     void parse_packet();
 
+    void scan_done();
+    void scan_data();
+
     std::unique_ptr<SerialDevice> m_serial_device;
     rclcpp::TimerBase::SharedPtr m_timer;
 
@@ -67,9 +80,8 @@ private:
 
     std::vector<ScanResult> m_scan_results;
 
-    uint8_t m_buffer[BUFFER_SIZE] = { 0 };
     State m_state { SYNC0 };
-    PackageHeader m_package_header = {};
+    Packet m_packet = {};
     std::string m_frame_id;
     float m_position_z = 0;
 };

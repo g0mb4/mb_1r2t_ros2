@@ -46,7 +46,7 @@ void MB_1r2t::publish_laser_scan()
     for (size_t i = 1; i < m_scan_results.size(); ++i) {
         avg_increment += m_scan_results[i].angle - m_scan_results[i - 1].angle;
     }
-    avg_increment /= (float)m_scan_results.size();
+    avg_increment /= (float)(m_scan_results.size() - 1);
 
     m_laser_scan_msg.angle_min = min_angle;
     m_laser_scan_msg.angle_max = max_angle;
@@ -73,113 +73,126 @@ void MB_1r2t::publish_point_cloud()
     m_point_cloud_msg.points.clear();
 }
 
+void MB_1r2t::scan_done()
+{
+    publish_point_cloud();
+    publish_laser_scan();
+
+    m_laser_scan_msg.header.stamp = now();
+}
+
+void MB_1r2t::scan_data()
+{
+    // TODO: search datasheet to verify this
+    int16_t diff = m_packet.stop_angle - m_packet.start_angle;
+    if (m_packet.stop_angle < m_packet.start_angle) {
+        diff = 0xB400 - m_packet.start_angle + m_packet.stop_angle;
+    }
+
+    int16_t angle_per_sample = 0;
+    if (diff > 1) {
+        angle_per_sample = diff / (m_packet.data_length - 1);
+    }
+
+    for (int i = 0; i < m_packet.data_length; ++i) {
+        uint16_t index = i * 3;
+        uint8_t intensity = m_packet.data[index + 0];
+        uint8_t distance_L = m_packet.data[index + 1];
+        uint8_t distance_H = m_packet.data[index + 2];
+
+        uint16_t distance = (uint16_t)(distance_H << 8) + (uint16_t)distance_L;
+        float distancef = (float)distance / 4000.0;
+
+        float step = M_PI * 2;
+        float angle = (m_packet.start_angle + angle_per_sample * i);
+        float anglef = (step * (angle / 0xB400));
+        float angle_inv = (M_PI * 2) - anglef;
+
+        ScanResult result;
+        result.angle = angle_inv;
+        result.distance = distancef;
+        result.intensity = intensity;
+
+        m_scan_results.emplace_back(result);
+
+        geometry_msgs::msg::Point32 point;
+        point.x = cos(angle_inv) * distancef;
+        point.y = sin(angle_inv) * distancef;
+        point.z = m_position_z;
+
+        m_point_cloud_msg.points.emplace_back(point);
+    }
+}
+
 void MB_1r2t::parse_packet()
 {
     switch (m_state) {
-    case SYNC0: {
-        if (m_serial_device->read(&m_buffer[0], 1) == false) {
+    case SYNC0:
+        if (m_serial_device->read(&m_packet.sync_0, 1) == false) {
             break;
         }
 
-        if (m_buffer[0] == KSYNC0) {
+        if (m_packet.sync_0 == SYNC_BYTE0) {
             m_state = SYNC1;
         }
 
         break;
-    }
-    case SYNC1: {
-        if (m_serial_device->read(&m_buffer[1], 1) == false) {
+
+    case SYNC1:
+        if (m_serial_device->read(&m_packet.sync_1, 1) == false) {
             break;
         }
 
-        if (m_buffer[1] == KSYNC1) {
+        if (m_packet.sync_1 == SYNC_BYTE1) {
             m_state = HEADER;
         } else {
             m_state = SYNC0;
         }
 
         break;
-    }
-    case HEADER: {
-        if (m_serial_device->read(&m_buffer[2], 8) == false) {
+
+    case HEADER:
+        if (m_serial_device->read(m_packet.data, 8) == false) {
             m_state = SYNC0;
             break;
         }
 
-        m_package_header.type = m_buffer[2];
-        m_package_header.data_length = m_buffer[3];
-        m_package_header.start_angle = m_buffer[5] << 8 | m_buffer[4];
-        m_package_header.stop_angle = m_buffer[7] << 8 | m_buffer[6];
-        m_package_header.crc = m_buffer[9] << 8 | m_buffer[8];
+        m_packet.type = m_packet.data[0];
+        m_packet.data_length = m_packet.data[1];
+        m_packet.start_angle = m_packet.data[3] << 8 | m_packet.data[2];
+        m_packet.stop_angle = m_packet.data[5] << 8 | m_packet.data[4];
+        m_packet.crc = m_packet.data[7] << 8 | m_packet.data[6];
 
         m_state = DATA;
         break;
-    }
+
     case DATA: {
-        uint16_t bytes_to_read = m_package_header.data_length * 3;
-        if (m_serial_device->read(&m_buffer[10], bytes_to_read) == false) {
+        uint16_t bytes_to_read = m_packet.data_length * 3;
+
+        // invalid data
+        if (bytes_to_read > DATA_SIZE) {
             m_state = SYNC0;
             break;
         }
 
-        if (m_package_header.type & 1) {
-            publish_point_cloud();
-            publish_laser_scan();
-
-            m_laser_scan_msg.header.stamp = now();
-        }
-
-        // corrupt data
-        if (bytes_to_read != 120) {
+        if (m_serial_device->read(m_packet.data, bytes_to_read) == false) {
             m_state = SYNC0;
             break;
         }
 
-        int16_t diff = m_package_header.stop_angle - m_package_header.start_angle;
-        if (m_package_header.stop_angle < m_package_header.start_angle) {
-            diff = 0xB400 - m_package_header.start_angle + m_package_header.stop_angle;
-        }
-
-        int16_t angle_per_sample = 0;
-        if (diff > 1) {
-            angle_per_sample = diff / (m_package_header.data_length - 1);
-        }
-
-        for (int i = 0; i < m_package_header.data_length; ++i) {
-            uint16_t index = 10 + (i * 3);
-            uint8_t intensity = m_buffer[index + 0];
-            uint8_t distance_L = m_buffer[index + 1];
-            uint8_t distance_H = m_buffer[index + 2];
-
-            uint16_t distance = (uint16_t)(distance_H << 8) + (uint16_t)distance_L;
-            float distancef = (float)distance / 4000.0;
-
-            float step = M_PI * 2;
-            float angle = (m_package_header.start_angle + angle_per_sample * i);
-            float anglef = (step * (angle / 0xB400));
-            float angle_inv = (M_PI * 2) - anglef;
-
-            ScanResult result;
-            result.angle = angle_inv;
-            result.distance = distancef;
-            result.intensity = intensity;
-
-            m_scan_results.emplace_back(result);
-
-            geometry_msgs::msg::Point32 point;
-            point.x = cos(angle_inv) * distancef;
-            point.y = sin(angle_inv) * distancef;
-            point.z = m_position_z;
-
-            m_point_cloud_msg.points.emplace_back(point);
+        if (m_packet.type == SCAN_DONE) {
+            scan_done();
+        } else if (m_packet.type == SCAN_DATA) {
+            scan_data();
+        } else {
+            RCLCPP_ERROR(get_logger(), "Unknown packet type: %02X", m_packet.type);
         }
 
         m_state = SYNC0;
         break;
     }
-    default: {
+    default:
         RCLCPP_ERROR(get_logger(), "Unknown state: %d", m_state);
         m_state = SYNC0;
-    }
     }
 }
