@@ -4,6 +4,10 @@ ROS2 driver for the MB 1R2T LiDAR.
 
 Based on [https://github.com/Vidicon/mb_1r2t_ros](https://github.com/Vidicon/mb_1r2t_ros).
 
+![mb_1r2t](img/mb_1r2t.jpg)
+
+![rviz](img/rviz.png)
+
 ## Usage
 
 In order to launch the node:
