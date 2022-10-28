@@ -39,7 +39,7 @@ SerialDevice::SerialDevice(rclcpp::Node& node, const std::string& port)
     tty.c_oflag = 0;
 
     if (tcsetattr(m_fd, TCSANOW, &tty) != 0) {
-        RCLCPP_FATAL(m_node.get_logger(), "Unable to apply serial settings: ", strerror(errno));
+        RCLCPP_FATAL(m_node.get_logger(), "Unable to apply serial settings: %s", strerror(errno));
         exit(1);
     }
 
@@ -62,7 +62,7 @@ SerialDevice::SerialDevice(rclcpp::Node& node, const std::string& port)
 
     int buf[64] = { 0 };
     if ((ioctl(m_fd, TCGETS2_, buf)) < 0) {
-        RCLCPP_FATAL(m_node.get_logger(), "Unable to get struct termios2: ", strerror(errno));
+        RCLCPP_FATAL(m_node.get_logger(), "Unable to get struct termios2: %s", strerror(errno));
         exit(1);
     }
 
@@ -72,7 +72,7 @@ SerialDevice::SerialDevice(rclcpp::Node& node, const std::string& port)
     buf[10] = BAUDRATE;
 
     if ((ioctl(m_fd, TCSETS2_, buf)) < 0) {
-        RCLCPP_FATAL(m_node.get_logger(), "Unable to set struct termios2: ", strerror(errno));
+        RCLCPP_FATAL(m_node.get_logger(), "Unable to set struct termios2: %s", strerror(errno));
         exit(1);
     }
 
