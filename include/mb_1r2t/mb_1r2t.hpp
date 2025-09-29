@@ -28,7 +28,7 @@ private:
         SYNC0 = 0,
         SYNC1,
         HEADER,
-        DATA
+        DATA,
     };
 
     enum SyncByte {
@@ -36,9 +36,14 @@ private:
         SYNC_BYTE1 = 0x55,
     };
 
+    // TODO: These numbers seems to depend on the rotation speed,
+    //       it wold be nice to find out how this dependency works.
+    // Link: https://github.com/g0mb4/mb_1r2t_ros2/issues/1
     enum PacketType {
-        SCAN_DONE = 0x91,
-        SCAN_DATA = 0x2C
+        SCAN_DONE_FAST = 0x91, // 0x93?
+        SCAN_DONE_SLOW = 0x47, // 0x45?
+        SCAN_DATA_FAST = 0x2C,
+        SCAN_DATA_SLOW = 0x28,
     };
 
     struct Packet {
